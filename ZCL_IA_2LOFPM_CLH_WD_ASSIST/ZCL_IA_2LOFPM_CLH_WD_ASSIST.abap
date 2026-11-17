@@ -1500,6 +1500,9 @@ WHERE reservation IN @it_rsnum
 ##TOO_MANY_ITAB_FIELDS     INTO CORRESPONDING FIELDS OF TABLE @rt_jobpool.
     ENDIF.
 
+    IF iv_perim IS NOT INITIAL.
+      DELETE rt_jobpool WHERE zzperi <> iv_perim.
+    ENDIF.
 
   ENDMETHOD.
 
