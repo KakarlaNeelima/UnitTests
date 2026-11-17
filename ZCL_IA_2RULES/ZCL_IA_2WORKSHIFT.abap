@@ -1984,14 +1984,13 @@ METHOD get_trassen_for_richtung.
   SORT lt_eiz BY zid_eiz. " Sorting needed for DELETE ADJACENT DUPLICATES
   DELETE ADJACENT DUPLICATES FROM lt_eiz COMPARING zid_eiz.
 
-  " Copy filtered trassen again to separate working table
-  DATA(lt_trassen_eiz) = lt_trassen.
-
   " Sort trassen by dynamic sort order passed as parameter
-  SORT lt_trassen_eiz BY (it_sort_order).
+  SORT lt_trassen BY (it_sort_order).
 
   " Loop over each unique EIZ
   LOOP AT lt_eiz ASSIGNING FIELD-SYMBOL(<ls_eiz>).
+
+    DATA(lt_trassen_eiz) = lt_trassen.
 
     " Remove all trassen entries that do not belong to the current EIZ
     DELETE lt_trassen_eiz WHERE zid_eiz <> <ls_eiz>-zid_eiz. "#EC CI_STDSEQ
