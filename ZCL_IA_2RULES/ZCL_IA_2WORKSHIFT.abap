@@ -3133,7 +3133,7 @@ ENDMETHOD.
           zcl_ia_2order_utils=>reset_orsc_status( io_auftraege = lo_orders ).
         ##NO_HANDLER CATCH zcx_ia_2failure." INTO DATA(lx_orsc_error).
       ENDTRY.
-      IF lo_orders->map[ 1 ]-key IS NOT INITIAL.
+      IF line_exists( lo_orders->map[ 1 ] ) AND lo_orders->map[ 1 ]-key IS NOT INITIAL.
         lv_order = lo_orders->map[ 1 ]-key.
         me->deactivate_user_status( iv_qmnum = CONV zia_2_workshift( gs_schicht-zschicht )
                                    iv_order = lv_order ).
