@@ -686,7 +686,7 @@ PRIVATE SECTION.
     IMPORTING
       !iv_sperras_id  TYPE zia_2_sperras_id
     RETURNING
-      VALUE(rs_value) TYPE zia_2sf_bs .
+      VALUE(rs_value) TYPE zia_2sf_bs_time .
   METHODS calculate_as_times
     IMPORTING
       !it_ez_form         TYPE zia_2_ez_frm_t
@@ -7932,7 +7932,7 @@ ENDMETHOD.
 * | Instance Private Method ZCL_IA_2WRKPLACE->SELECT_SP_SCHICHT
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] IV_SPERRAS_ID                  TYPE        ZIA_2_SPERRAS_ID
-* | [<-()] RS_VALUE                       TYPE        ZIA_2SF_BS
+* | [<-()] RS_VALUE                       TYPE        ZIA_2SF_BS_TIME
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   METHOD select_sp_schicht.
 *----------------------------------------------------------------------*
