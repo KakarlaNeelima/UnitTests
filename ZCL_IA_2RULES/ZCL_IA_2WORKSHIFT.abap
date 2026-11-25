@@ -3050,6 +3050,18 @@ ENDMETHOD.
       ENDTRY.
     ENDIF.
 
+    DATA(lo_delete_orders) = io_object->get_auftraege( ).
+    DATA(lo_delete_order_i) = lo_delete_orders->get_values_iterator( ).
+
+    WHILE lo_delete_order_i->has_next( ) = abap_true.
+      DATA(lo_delete_order) = CAST zcl_ia_2order( lo_delete_order_i->get_next( ) ).
+      DATA(lv_delete_order) = lo_delete_order->get_id( ).
+
+      me->deactivate_user_status(
+        iv_qmnum = CONV zia_2_workshift( gs_schicht-zschicht )
+        iv_order = lv_delete_order ).
+    ENDWHILE.
+
     IF zcl_ia_2_sp_kilometer=>is_manual_signal_refactor_on( ) EQ abap_true. "temp while testing.
       io_object->refresh_manual_signals( ).
     ENDIF.
@@ -3133,11 +3145,16 @@ ENDMETHOD.
         ##NO_HANDLER CATCH zcx_ia_2failure." INTO DATA(lx_orsc_error).
       ENDTRY.
 
-      IF line_exists( lo_orders->map[ 1 ] ) AND lo_orders->map[ 1 ]-key IS NOT INITIAL.
-        lv_order = lo_orders->map[ 1 ]-key.
+      DATA(lo_reset_order_i) = lo_orders->get_values_iterator( ).
+
+      WHILE lo_reset_order_i->has_next( ) = abap_true.
+        DATA(lo_reset_order) = CAST zcl_ia_2order( lo_reset_order_i->get_next( ) ).
+        lv_order = lo_reset_order->get_id( ).
+
         me->deactivate_user_status( iv_qmnum = CONV zia_2_workshift( gs_schicht-zschicht )
                                    iv_order = lv_order ).
-      ENDIF.
+      ENDWHILE.
+
       READ TABLE lo_orders->map INDEX 1 INTO DATA(ls_entry).
 
       IF sy-subrc = 0 AND ls_entry-key IS NOT INITIAL.

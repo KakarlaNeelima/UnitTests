@@ -1,214 +1,174 @@
-# JADE-1753: Implementation Location
+# JADE-1753: Implementation Guide
 
-## What needs to be changed and why
+## 1. Class to change
 
-The issue is in the `ZCL_IA_2WORKSHIFT` class. Resetting a shift or deleting a work area removes planning orders, but the SAP user status may remain `PL1` or `PL2` instead of returning to `REAL`.
+Change only this ABAP class:
 
-The existing logic processes only the first order entry in some paths. The required change is to process every planning order linked to the reset or deleted work area.
+```text
+ZCL_IA_2WORKSHIFT
+```
 
-The existing `DEACTIVATE_USER_STATUS` method already contains the required status handling:
+Source file:
 
-- Reads the active user statuses for the order.
-- Deactivates `PL1`, `PL2`, and `PL3` when active.
-- Leaves the existing ERP restore and order-removal logic unchanged.
+```text
+ZCL_IA_2RULES/ZCL_IA_2WORKSHIFT.abap
+```
 
-Reuse this method for every affected planning order.
+Do not change `ZCL_IA_2ORDER_UTILS` or `ZCL_IA_2WORKSHIFT->DEACTIVATE_USER_STATUS`.
 
-## Required methods
+## 2. Why the change is needed
 
-### 1. `ZCL_IA_2WORKSHIFT->RESET`
+Resetting a shift or deleting a work area can leave planning orders with active `PL1` or `PL2` status.
 
-Add an iterator loop after `reset_orsc_status( )` and before removing the work area's orders.
+The requirement is to process every planning order and deactivate:
+
+- `PL1`
+- `PL2`
+- `PL3`
+
+After reset or work-area deletion, the affected planning orders must have `REAL` status.
+
+---
+
+## 3. Change for `RESET`
+
+### Location
+
+Method:
+
+```text
+ZCL_IA_2WORKSHIFT->RESET
+```
+
+### Code to add
+
+Add the following block after `reset_orsc_status( )`:
 
 ```abap
-DATA(lo_order_iterator) = lo_orders->get_values_iterator( ).
+* [START] JADE-1753: Deactivate planning statuses for every reset order
+DATA(lo_1753_reset_iterator) = lo_orders->get_values_iterator( ).
 
-WHILE lo_order_iterator->has_next( ) = abap_true.
-  DATA(lo_order) = CAST zcl_ia_2order( lo_order_iterator->get_next( ) ).
-  DATA(lv_order) = lo_order->get_id( ).
+WHILE lo_1753_reset_iterator->has_next( ) = abap_true.
+  DATA(lo_1753_reset_order) = CAST zcl_ia_2order( lo_1753_reset_iterator->get_next( ) ).
+  DATA(lv_1753_reset_order) = lo_1753_reset_order->get_id( ).
 
   me->deactivate_user_status(
     iv_qmnum = CONV zia_2_workshift( gs_schicht-zschicht )
-    iv_order = lv_order ).
+    iv_order = lv_1753_reset_order ).
 ENDWHILE.
+* [END] JADE-1753
 ```
 
-Do not replace or delete the existing reset code. Add this loop so all orders are processed.
+### Code that may be deleted
 
-### 2. `ZCL_IA_2WORKSHIFT->REMOVE_ARBEITSSTELLE`
-
-Add an iterator loop after the ERP restore and before:
+The following block is marked in the source as `[DELETE CANDIDATE] JADE-1753`:
 
 ```abap
-io_object->remove_auftraege( iv_change_erp = abap_false ).
-```
-
-```abap
-DATA(lo_workarea_orders) = io_object->get_auftraege( ).
-DATA(lo_order_iterator) = lo_workarea_orders->get_values_iterator( ).
-
-WHILE lo_order_iterator->has_next( ) = abap_true.
-  DATA(lo_order) = CAST zcl_ia_2order( lo_order_iterator->get_next( ) ).
-  DATA(lv_order) = lo_order->get_id( ).
-
+IF line_exists( lo_orders->map[ 1 ] ) AND lo_orders->map[ 1 ]-key IS NOT INITIAL.
+  lv_order = lo_orders->map[ 1 ]-key.
   me->deactivate_user_status(
     iv_qmnum = CONV zia_2_workshift( gs_schicht-zschicht )
     iv_order = lv_order ).
-ENDWHILE.
+ENDIF.
 ```
 
-The loop must run before `remove_auftraege`, because that method clears the work area's order assignments.
+Delete this block only after SAP verification.
 
-### 3. `ZCL_IA_2WORKSHIFT->DEACTIVATE_USER_STATUS`
+**Reason:** It processes only `lo_orders->map[ 1 ]`. The new loop already processes every order, so keeping both blocks can process the first order twice.
 
-This method does not need to be changed unless existing status handling is incomplete.
+### Code that must remain
 
-It should remain responsible for:
+Keep the following `READ TABLE` block unchanged:
 
-1. Checking that the shift and order numbers are present.
-2. Reading the order object number.
-3. Reading active user statuses.
-4. Deactivating `PL1`, `PL2`, and `PL3` when active.
+```abap
+READ TABLE lo_orders->map INDEX 1 INTO DATA(ls_entry).
 
-## Why this change is needed
+IF sy-subrc = 0 AND ls_entry-key IS NOT INITIAL.
+  lv_order = ls_entry-key.
+  " Existing maintenance-order phase update continues here.
+ENDIF.
+```
 
-- Reset and work-area deletion may affect multiple planning orders.
-- Checking only `lo_orders->map[ 1 ]` can leave `PL1` or `PL2` active on other orders.
-- Processing every order ensures all affected planning orders return to `REAL`.
-- The status cleanup must happen before the orders are removed from the work area.
+This block performs the phase update. It is not the user-status cleanup.
 
-## Test verification
+---
 
-Use disposable shifts that are already Dispo released:
+## 4. Change for `REMOVE_ARBEITSSTELLE`
 
-| Action | GBT shift |
+### Location
+
+Method:
+
+```text
+ZCL_IA_2WORKSHIFT->REMOVE_ARBEITSSTELLE
+```
+
+### Code to add
+
+Add this block after ERP restore and before `remove_auftraege( )`:
+
+```abap
+* [START] JADE-1753: Deactivate planning statuses for every work-area order
+DATA(lo_1753_workarea_orders) = io_object->get_auftraege( ).
+DATA(lo_1753_order_iterator) = lo_1753_workarea_orders->get_values_iterator( ).
+
+WHILE lo_1753_order_iterator->has_next( ) = abap_true.
+  DATA(lo_1753_order) = CAST zcl_ia_2order( lo_1753_order_iterator->get_next( ) ).
+  DATA(lv_1753_order) = lo_1753_order->get_id( ).
+
+  me->deactivate_user_status(
+    iv_qmnum = CONV zia_2_workshift( gs_schicht-zschicht )
+    iv_order = lv_1753_order ).
+ENDWHILE.
+* [END] JADE-1753
+```
+
+### Code to delete
+
+No existing code needs to be deleted in `REMOVE_ARBEITSSTELLE`.
+
+---
+
+## 5. Existing method to reuse
+
+Reuse this existing method:
+
+```text
+ZCL_IA_2WORKSHIFT->DEACTIVATE_USER_STATUS
+```
+
+No change is required in this method.
+
+It:
+
+1. Reads the order object number.
+2. Reads active SAP user statuses.
+3. Deactivates `PL1`, `PL2`, and `PL3`.
+
+---
+
+## 6. Clear change summary
+
+| Method | Code to add | Existing code to delete |
+|---|---|---|
+| `RESET` | Full-order iterator loop | First-order `IF line_exists(...)` status block, after verification |
+| `REMOVE_ARBEITSSTELLE` | Full-order iterator loop | Nothing |
+| `DEACTIVATE_USER_STATUS` | Nothing | Nothing |
+
+## 7. SAP test verification
+
+Use disposable, Dispo-released GBT shifts:
+
+| Test | Shift |
 |---|---|
 | Reset from starting page | `1500004173` |
 | Reset from detail page | `1500004174` |
 | Delete work area | `1500004175` |
 | Delete work area | `1500004176` |
 
-## Main class to change
+After each test, verify every affected planning order:
 
-Class:
-
-`ZCL_IA_2WORKSHIFT`
-
-File:
-
-`ZCL_IA_2RULES/ZCL_IA_2WORKSHIFT.abap`
-
-## Methods to update
-
-### 1. `RESET`
-
-Process every planning order linked to each work area. The existing logic currently checks only the first order entry in the order map.
-
-Changes required:
-
-- Iterate through all orders returned by `lo_orders`.
-- Deactivate `PL1`, `PL2`, and `PL3` for every affected order.
-- Update or verify the order phase for each order.
-- Continue removing all orders and vehicles from the work area.
-
-The first-order check must be replaced with processing for every order in the order map.
-
-Modify this block in `ZCL_IA_2WORKSHIFT->RESET`:
-
-```abap
-TRY.
-    zcl_ia_2order_utils=>reset_orsc_status( io_auftraege = lo_orders ).
-  ##NO_HANDLER CATCH zcx_ia_2failure.
-ENDTRY.
-```
-
-Replace the existing first-entry and `READ TABLE` status logic:
-
-```abap
-IF line_exists( lo_orders->map[ 1 ] ) AND lo_orders->map[ 1 ]-key IS NOT INITIAL.
-  lv_order = lo_orders->map[ 1 ]-key.
-  me->deactivate_user_status( iv_qmnum = CONV zia_2_workshift( gs_schicht-zschicht )
-                             iv_order = lv_order ).
-ENDIF.
-
-READ TABLE lo_orders->map INDEX 1 INTO DATA(ls_entry).
-```
-
-with an iterator loop that processes every order:
-
-```abap
-DATA(lo_order_iterator) = lo_orders->get_values_iterator( ).
-
-WHILE lo_order_iterator->has_next( ) = abap_true.
-  DATA(lo_order) = CAST zcl_ia_2order( lo_order_iterator->get_next( ) ).
-
-  lv_order = lo_order->get_id( ).
-
-  me->deactivate_user_status(
-    iv_qmnum = CONV zia_2_workshift( gs_schicht-zschicht )
-    iv_order = lv_order ).
-
-  zcl_ia_2utilities=>update_maint_ord_phase(
-    iv_aufnr                    = lv_order
-    iv_maintordovrlprocphase    = lv_maintordovrlprocphase
-    iv_maintordovrlprocsubphase = lv_maintordovrlprocsubphase ).
-ENDWHILE.
-```
-
-Remove the old separate `READ TABLE lo_orders->map INDEX 1` block after the new loop to prevent duplicate phase processing.
-
-### 2. `REMOVE_ARBEITSSTELLE`
-
-Before removing the work area's orders, process every order linked to `io_object`.
-
-Changes required:
-
-- Get all orders using `io_object->get_auftraege( )`.
-- Process each order in the returned order map.
-- Deactivate `PL1`, `PL2`, and `PL3` for each affected order.
-- Then continue existing work-area deletion logic.
-
-Add an order-iterator loop in `ZCL_IA_2WORKSHIFT->REMOVE_ARBEITSSTELLE` after ERP restore and before:
-
-```abap
-io_object->remove_auftraege( iv_change_erp = abap_false ).
-```
-
-Use this code pattern:
-
-```abap
-DATA(lo_workarea_orders) = io_object->get_auftraege( ).
-DATA(lo_order_iterator) = lo_workarea_orders->get_values_iterator( ).
-
-WHILE lo_order_iterator->has_next( ) = abap_true.
-  DATA(lo_order) = CAST zcl_ia_2order( lo_order_iterator->get_next( ) ).
-
-  DATA(lv_order) = lo_order->get_id( ).
-
-  me->deactivate_user_status(
-    iv_qmnum = CONV zia_2_workshift( gs_schicht-zschicht )
-    iv_order = lv_order ).
-ENDWHILE.
-```
-
-This loop must be present before `remove_auftraege`, because order removal clears the work-area order assignments afterward.
-
-## Supporting method
-
-Method:
-
-`ZCL_IA_2WORKSHIFT->DEACTIVATE_USER_STATUS`
-
-Reuse this existing method for both reset and work-area deletion. It is responsible for reading active user statuses and deactivating `PL1`, `PL2`, and `PL3`.
-
-## Optional supporting class
-
-Class:
-
-`ZCL_IA_2ORDER_UTILS`
-
-File:
-
-`ZCL_IA_2ORDER_UTILS/ZCL_IA_2ORDER_UTILS.abap`
-
-Use this class only if the status cleanup is centralized as a new shared order-status method. The existing reset and work-area deletion methods can initially call `ZCL_IA_2WORKSHIFT->DEACTIVATE_USER_STATUS` directly.
+- `PL1` is inactive.
+- `PL2` is inactive.
+- `PL3` is inactive.
+- `REAL` status is present.
