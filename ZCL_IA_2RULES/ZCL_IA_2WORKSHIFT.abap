@@ -3050,7 +3050,6 @@ ENDMETHOD.
       ENDTRY.
     ENDIF.
 
-
     IF zcl_ia_2_sp_kilometer=>is_manual_signal_refactor_on( ) EQ abap_true. "temp while testing.
       io_object->refresh_manual_signals( ).
     ENDIF.
@@ -3133,6 +3132,7 @@ ENDMETHOD.
           zcl_ia_2order_utils=>reset_orsc_status( io_auftraege = lo_orders ).
         ##NO_HANDLER CATCH zcx_ia_2failure." INTO DATA(lx_orsc_error).
       ENDTRY.
+
       IF line_exists( lo_orders->map[ 1 ] ) AND lo_orders->map[ 1 ]-key IS NOT INITIAL.
         lv_order = lo_orders->map[ 1 ]-key.
         me->deactivate_user_status( iv_qmnum = CONV zia_2_workshift( gs_schicht-zschicht )
