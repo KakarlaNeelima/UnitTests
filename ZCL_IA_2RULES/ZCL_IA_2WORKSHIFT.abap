@@ -3051,11 +3051,11 @@ ENDMETHOD.
     ENDIF.
 
     DATA(lo_delete_orders) = io_object->get_auftraege( ).
-    DATA(lo_delete_order_i) = lo_delete_orders->get_values_iterator( ).
+    DATA(li_delete_order_i) = lo_delete_orders->get_values_iterator( ).
 
-    WHILE lo_delete_order_i->has_next( ) = abap_true.
-      DATA(lo_delete_order) = CAST zcl_ia_2order( lo_delete_order_i->get_next( ) ).
-      DATA(lv_delete_order) = lo_delete_order->get_id( ).
+    WHILE li_delete_order_i->has_next( ) = abap_true.
+      DATA(lo_delete_order) = CAST zcl_ia_2order( li_delete_order_i->get_next( ) ).
+      DATA(lv_delete_order) = CONV aufnr( lo_delete_order->get_id( ) ).
 
       me->deactivate_user_status(
         iv_qmnum = CONV zia_2_workshift( gs_schicht-zschicht )
