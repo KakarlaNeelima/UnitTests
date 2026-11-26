@@ -3145,10 +3145,10 @@ ENDMETHOD.
         ##NO_HANDLER CATCH zcx_ia_2failure." INTO DATA(lx_orsc_error).
       ENDTRY.
 
-      DATA(lo_reset_order_i) = lo_orders->get_values_iterator( ).
+      DATA(li_reset_order_i) = lo_orders->get_values_iterator( ).
 
-      WHILE lo_reset_order_i->has_next( ) = abap_true.
-        DATA(lo_reset_order) = CAST zcl_ia_2order( lo_reset_order_i->get_next( ) ).
+      WHILE li_reset_order_i->has_next( ) = abap_true.
+        DATA(lo_reset_order) = CAST zcl_ia_2order( li_reset_order_i->get_next( ) ).
         lv_order = lo_reset_order->get_id( ).
 
         me->deactivate_user_status( iv_qmnum = CONV zia_2_workshift( gs_schicht-zschicht )
